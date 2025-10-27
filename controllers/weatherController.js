@@ -4,6 +4,40 @@ const Weather = require('../models/Weather');
 const OPENWEATHER_API_KEY = 'c08c810ff1aab8baadad42428c7952d8';
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
+// Process 5-day forecast data
+const processForecastData = (forecastList) => {
+  const dailyData = {};
+  
+  forecastList.forEach(item => {
+    const date = new Date(item.dt * 1000);
+    const dayKey = date.toDateString();
+    
+    if (!dailyData[dayKey]) {
+      dailyData[dayKey] = {
+        date: date,
+        dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        temps: [],
+        conditions: [],
+        icons: []
+      };
+    }
+    
+    dailyData[dayKey].temps.push(item.main.temp);
+    dailyData[dayKey].conditions.push(item.weather[0].description);
+    dailyData[dayKey].icons.push(item.weather[0].icon);
+  });
+  
+  // Convert to array and calculate min/max temps
+  return Object.values(dailyData).map(day => ({
+    dayName: day.dayName,
+    date: day.date,
+    minTemp: Math.round(Math.min(...day.temps)),
+    maxTemp: Math.round(Math.max(...day.temps)),
+    condition: day.conditions[Math.floor(day.conditions.length / 2)], // Use middle condition
+    icon: day.icons[Math.floor(day.icons.length / 2)] // Use middle icon
+  })).slice(0, 5); // Return only 5 days
+};
+
 const getWeatherData = async (req, res) => {
   try {
     console.log("getWeatherData city", req.params);
@@ -31,6 +65,10 @@ const getWeatherData = async (req, res) => {
         temperature: cachedWeather.temperature,
         condition: cachedWeather.condition,
         icon: cachedWeather.icon,
+        humidity: cachedWeather.humidity,
+        windSpeed: cachedWeather.windSpeed,
+        pressure: cachedWeather.pressure,
+        visibility: cachedWeather.visibility,
         timestamp: cachedWeather.timestamp,
         cached: true
       });
@@ -42,6 +80,7 @@ const getWeatherData = async (req, res) => {
     
     const response = await axios.get(apiUrl);
     const weatherData = response.data;
+  
 
     // Extract required data
     const weatherInfo = {
@@ -49,6 +88,10 @@ const getWeatherData = async (req, res) => {
       temperature: Math.round(weatherData.main.temp),
       condition: weatherData.weather[0].description,
       icon: weatherData.weather[0].icon,
+      humidity: weatherData.main.humidity,
+      windSpeed: weatherData.wind.speed,
+      pressure: weatherData.main.pressure,
+      visibility: weatherData.visibility,
       timestamp: new Date()
     };
 
@@ -56,9 +99,20 @@ const getWeatherData = async (req, res) => {
     const newWeather = new Weather(weatherInfo);
     await newWeather.save();
 
+    // Fetch 5-day forecast
+    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+    const forecastResponse = await axios.get(forecastUrl);
+    const forecastData = forecastResponse.data;
+
+    console.log("forecastData", forecastData);
+
+    // Process forecast data (group by day and get daily min/max)
+    const dailyForecast = processForecastData(forecastData.list);
+
     // Return the data
     res.json({
       ...weatherInfo,
+      forecast: dailyForecast,
       cached: false
     });
 
