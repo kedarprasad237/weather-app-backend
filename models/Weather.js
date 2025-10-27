@@ -35,6 +35,14 @@ const weatherSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  forecast: [{
+    dayName: String,
+    date: Date,
+    minTemp: Number,
+    maxTemp: Number,
+    condition: String,
+    icon: String
+  }],
   timestamp: {
     type: Date,
     default: Date.now,

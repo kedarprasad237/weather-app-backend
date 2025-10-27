@@ -33,9 +33,9 @@ const processForecastData = (forecastList) => {
     date: day.date,
     minTemp: Math.round(Math.min(...day.temps)),
     maxTemp: Math.round(Math.max(...day.temps)),
-    condition: day.conditions[Math.floor(day.conditions.length / 2)], // Use middle condition
-    icon: day.icons[Math.floor(day.icons.length / 2)] // Use middle icon
-  })).slice(0, 5); // Return only 5 days
+    condition: day.conditions[Math.floor(day.conditions.length / 2)], 
+    icon: day.icons[Math.floor(day.icons.length / 2)] 
+  })).slice(0, 5); 
 };
 
 const getWeatherData = async (req, res) => {
@@ -69,12 +69,13 @@ const getWeatherData = async (req, res) => {
         windSpeed: cachedWeather.windSpeed,
         pressure: cachedWeather.pressure,
         visibility: cachedWeather.visibility,
+        forecast: cachedWeather.forecast,
         timestamp: cachedWeather.timestamp,
         cached: true
       });
     }
 
-    // Fetch fresh data from OpenWeather API
+    
     console.log(`Fetching fresh data for ${cityName} from OpenWeather API`);
     const apiUrl = `https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${OPENWEATHER_API_KEY}&units=metric`;
     
@@ -82,7 +83,6 @@ const getWeatherData = async (req, res) => {
     const weatherData = response.data;
   
 
-    // Extract required data
     const weatherInfo = {
       city: cityName,
       temperature: Math.round(weatherData.main.temp),
@@ -95,24 +95,25 @@ const getWeatherData = async (req, res) => {
       timestamp: new Date()
     };
 
-    // Save to database
-    const newWeather = new Weather(weatherInfo);
-    await newWeather.save();
-
     // Fetch 5-day forecast
     const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${OPENWEATHER_API_KEY}&units=metric`;
     const forecastResponse = await axios.get(forecastUrl);
     const forecastData = forecastResponse.data;
 
-    console.log("forecastData", forecastData);
 
     // Process forecast data (group by day and get daily min/max)
     const dailyForecast = processForecastData(forecastData.list);
 
+    // Add forecast to weatherInfo
+    weatherInfo.forecast = dailyForecast;
+
+    // Save to database
+    const newWeather = new Weather(weatherInfo);
+    await newWeather.save();
+
     // Return the data
     res.json({
       ...weatherInfo,
-      forecast: dailyForecast,
       cached: false
     });
 
@@ -168,7 +169,6 @@ const getWeatherData = async (req, res) => {
         return res.status(statusCode).json(errorResponse);
       }
     } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-      // Network error
       errorResponse.error = 'Service unavailable';
       errorResponse.message = 'Unable to connect to weather service. Please check your internet connection.';
       if (process.env.NODE_ENV === 'development') {
@@ -177,7 +177,6 @@ const getWeatherData = async (req, res) => {
       }
       return res.status(503).json(errorResponse);
     } else {
-      // Other errors (MongoDB, validation, etc.)
       errorResponse.error = 'Internal server error';
       errorResponse.message = 'Something went wrong while fetching weather data.';
       if (process.env.NODE_ENV === 'development') {
