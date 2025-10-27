@@ -1,7 +1,7 @@
 const axios = require('axios');
 const Weather = require('../models/Weather');
 
-const OPENWEATHER_API_KEY = 'c08c810ff1aab8baadad42428c7952d8';
+const OPENWEATHER_API_KEY=process.env.OPENWEATHER_API_KEY || 'c08c810ff1aab8baadad42428c7952d8';
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 // Process 5-day forecast data
@@ -111,7 +111,7 @@ const getWeatherData = async (req, res) => {
     const newWeather = new Weather(weatherInfo);
     await newWeather.save();
 
-    // Return the data
+    
     res.json({
       ...weatherInfo,
       cached: false
